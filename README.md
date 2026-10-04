@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="icon.png" alt="StreamHub Logo" width="128" height="128">
-</p>
-
 <h1 align="center">StreamHub</h1>
 
 <p align="center">
