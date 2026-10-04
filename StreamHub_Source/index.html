@@ -1,0 +1,375 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Stream Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --bg: #09090b; --card: #141417; --accent: #a855f7; }
+        body { background-color: var(--bg); color: #f8fafc; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
+        .card-bg { background-color: var(--card); border: 1px solid #27272a; }
+        .accent-text { color: var(--accent); }
+        .accent-bg { background-color: var(--accent); }
+        .nav-btn { width: 100%; text-align: left; padding: 12px 16px; border-radius: 8px; margin-bottom: 8px; color: #a1a1aa; transition: 0.2s; font-weight: 600; }
+        .nav-btn:hover { background-color: #27272a; color: white; }
+        .nav-btn.active { background-color: var(--accent); color: white; }
+        input[type="text"], input[type="number"], input[type="password"], select, textarea { background: #000; border: 1px solid #3f3f46; color: white; padding: 10px 12px; border-radius: 6px; width: 100%; outline: none; }
+        input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+        .btn { padding: 12px 24px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.15s; border: none; text-align: center; }
+        .btn:active { transform: scale(0.98); }
+        
+        input[type="date"] {
+            background-color: #0c0c0e;
+            border: 1px solid #3f3f46;
+            color: #f8fafc;
+            padding: 8px 12px;
+            border-radius: 6px;
+            color-scheme: dark;
+            cursor: pointer;
+            outline: none;
+        }
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+            cursor: pointer;
+            opacity: 0.8;
+        }
+
+        input[type="color"] { -webkit-appearance: none; border: none; width: 3rem; height: 3rem; border-radius: 50%; overflow: hidden; cursor: pointer; background: transparent; padding: 0; }
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; box-shadow: 0 0 0 2px #27272a; }
+        
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #09090b; }
+        ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }
+    </style>
+</head>
+<body class="h-screen flex select-none">
+    
+    <!-- Меню -->
+    <div class="w-60 border-r border-gray-800 p-4 flex flex-col bg-[#09090b] z-10 shrink-0">
+        <h2 id="easter-egg-trigger" title="Нажми 3 раза" class="text-xl font-black mb-6 flex items-center gap-2 cursor-pointer select-none active:scale-95 transition-transform hover:opacity-90">
+            <span class="accent-text text-2xl">⚡</span> STREAM HUB
+        </h2>
+
+        <div id="da-status-badge" class="flex items-center gap-2 mb-6 px-3 py-2 rounded-lg bg-red-950/40 border border-red-800 text-xs text-red-300 font-bold">
+            <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+            <span>DA: Отключено</span>
+        </div>
+
+        <button id="tab-queue" class="nav-btn active">📺 Очередь</button>
+        <button id="tab-analytics" class="nav-btn">📊 Аналитика</button>
+        <button id="tab-leaderboard" class="nav-btn">🏆 Топ Донатеров</button>
+        <button id="tab-fake" class="nav-btn">🧪 Фейк-донат</button>
+        <button id="tab-data" class="nav-btn">💾 Отчеты и База</button>
+        <button id="tab-settings" class="nav-btn">⚙️ Настройки</button>
+
+        <div class="mt-auto border-t border-gray-800 pt-4">
+            <div class="text-[11px] text-gray-500 uppercase tracking-widest font-semibold mb-1">OBS Оверлей URL</div>
+            <input type="text" value="http://localhost:3939/overlay" readonly class="text-xs text-gray-400 bg-black cursor-pointer font-mono p-2" onclick="this.select()">
+        </div>
+    </div>
+
+    <!-- Контент -->
+    <div class="flex-1 relative bg-[#09090b] overflow-hidden">
+        
+        <!-- ОЧЕРЕДЬ -->
+        <div id="view-queue" class="absolute inset-0 flex">
+            <div class="w-80 border-r border-gray-800 p-4 flex flex-col h-full shrink-0 bg-[#0c0c0e]">
+                <div class="flex items-center justify-between pb-3 border-b border-gray-800 mb-3">
+                    <span class="font-extrabold text-sm tracking-wider uppercase text-gray-400">Очередь</span>
+                    <span id="queue-counter" class="text-xs bg-gray-800 px-2 py-0.5 rounded text-gray-300 font-bold">0</span>
+                </div>
+
+                <div class="bg-[#141417] border border-gray-800 rounded-lg p-3 mb-3">
+                    <label class="flex items-center justify-between cursor-pointer">
+                        <span class="text-xs font-semibold text-gray-300">Авто-вывод в OBS</span>
+                        <input type="checkbox" id="queue-auto-obs" class="w-4 h-4 accent-emerald-500 cursor-pointer">
+                    </label>
+                </div>
+
+                <button id="btn-mark-all-read" class="w-full mb-3 py-1.5 px-3 rounded bg-gray-800 hover:bg-gray-700 text-xs font-bold text-gray-300 transition flex items-center justify-center gap-1.5 border border-gray-700">
+                    <span>✓✓</span> Прочитать все сообщения
+                </button>
+
+                <div class="flex gap-1 mb-3 text-xs">
+                    <button id="filter-all" class="flex-1 py-1 bg-gray-800 rounded text-white font-semibold">Все</button>
+                    <button id="filter-unread" class="flex-1 py-1 bg-transparent hover:bg-gray-800/50 rounded text-gray-400 font-semibold">Новые</button>
+                    <button id="filter-postponed" class="flex-1 py-1 bg-transparent hover:bg-gray-800/50 rounded text-gray-400 font-semibold">Отложенные</button>
+                </div>
+
+                <div class="flex-1 overflow-y-auto space-y-2 pr-1" id="queue-list"></div>
+            </div>
+
+            <!-- Фокус-режим -->
+            <div class="flex-1 p-8 flex flex-col justify-center items-center relative overflow-y-auto" id="focus-screen">
+                <div id="current-donation" class="card-bg p-10 rounded-2xl shadow-2xl w-full max-w-3xl text-center hidden border border-gray-800">
+                    <div class="flex items-center justify-center gap-2 mb-4">
+                        <span id="cd-status-badge" class="text-xs font-black uppercase tracking-widest px-3 py-1 rounded-full bg-blue-900/60 text-blue-400 border border-blue-700">НОВОЕ</span>
+                        <span id="cd-fake-badge" class="hidden text-xs font-black uppercase tracking-widest px-3 py-1 rounded-full bg-red-900/60 text-red-400 border border-red-700">[ТЕСТ / ФЕЙК]</span>
+                        <span id="cd-warn-badge" class="hidden text-xs font-black uppercase tracking-widest px-3 py-1 rounded-full bg-amber-900/60 text-amber-300 border border-amber-600">⚠️ ЦЕНЗУРА / СПАМ</span>
+                    </div>
+
+                    <div id="cd-time" class="text-xs text-gray-500 font-mono mb-4">--:--:--</div>
+
+                    <h1 id="cd-username" class="text-5xl font-black mb-3 text-white tracking-tight">Никнейм</h1>
+                    <div id="cd-amount" class="text-4xl font-extrabold text-emerald-400 mb-8 font-mono">1 000 RUB</div>
+                    
+                    <div class="bg-black/40 rounded-xl p-6 mb-8 border border-gray-800/80">
+                        <p id="cd-message" class="text-2xl text-gray-100 leading-relaxed font-medium break-words">Текст доната</p>
+                    </div>
+
+                    <div class="grid grid-cols-4 gap-3 mb-4">
+                        <button id="btn-prev" class="btn border-2 border-gray-700 text-gray-300 hover:bg-gray-800 text-base">⬅ Назад</button>
+                        <button id="btn-postpone" class="btn border-2 border-amber-600/70 text-amber-300 hover:bg-amber-900/30 text-base">🕒 Отложить</button>
+                        <button id="btn-obs" class="btn bg-emerald-600 hover:bg-emerald-500 text-white text-base shadow-lg shadow-emerald-900/30">▶ В OBS</button>
+                        <button id="btn-next" class="btn accent-bg text-white text-base shadow-lg shadow-purple-900/30">✓ Прочитано ➡</button>
+                    </div>
+
+                    <div class="flex items-center justify-between pt-4 border-t border-gray-800/80 text-xs text-gray-500">
+                        <span>Горячие клавиши: <b>Пробел</b> (Дальше), <b>←</b> (Назад)</span>
+                        <button id="btn-reset-read" class="text-gray-400 hover:text-white underline">Снять пометку «Прочитано»</button>
+                    </div>
+                </div>
+
+                <div id="empty-state" class="text-gray-600 text-2xl font-bold flex flex-col items-center">
+                    <span class="text-5xl mb-3">💬</span>
+                    <span>Нет донатов в очереди</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- АНАЛИТИКА -->
+        <div id="view-analytics" class="absolute inset-0 p-10 hidden overflow-y-auto">
+            <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
+                <h2 class="text-3xl font-black">Аналитика стрима</h2>
+                
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-1.5 bg-[#141417] border border-gray-800 p-1 rounded-lg">
+                        <button id="chart-type-doughnut" class="py-1 px-3 text-xs font-bold rounded bg-purple-600 text-white transition">Круговой</button>
+                        <button id="chart-type-bar" class="py-1 px-3 text-xs font-bold rounded text-gray-400 hover:text-white transition">Столбцы</button>
+                        <button id="chart-type-line" class="py-1 px-3 text-xs font-bold rounded text-gray-400 hover:text-white transition">Линейный</button>
+                    </div>
+
+                    <select id="analytics-period" class="w-56 text-sm">
+                        <option value="all">За всё время</option>
+                        <option value="14">За последние 14 дней</option>
+                        <option value="30">За последние 30 дней</option>
+                        <option value="custom">📅 Выбрать даты в календаре</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="custom-date-container" class="card-bg p-4 rounded-xl border border-gray-800 mb-6 hidden flex-wrap items-center gap-4 bg-[#141417]">
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-gray-400 font-bold uppercase">С даты:</span>
+                    <input type="date" id="date-from" class="text-xs">
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-gray-400 font-bold uppercase">По дату:</span>
+                    <input type="date" id="date-to" class="text-xs">
+                </div>
+                <button id="btn-reset-dates" class="btn border border-gray-700 text-gray-400 hover:text-white text-xs py-2 px-3">
+                    Сбросить
+                </button>
+            </div>
+
+            <div class="grid grid-cols-3 gap-6 mb-8">
+                <div class="card-bg p-6 rounded-xl border border-gray-800">
+                    <div class="text-gray-400 text-xs uppercase font-bold tracking-wider mb-1">Сумма сборов</div>
+                    <div class="text-4xl font-extrabold text-emerald-400 font-mono" id="stat-total">0 ₽</div>
+                </div>
+                <div class="card-bg p-6 rounded-xl border border-gray-800">
+                    <div class="text-gray-400 text-xs uppercase font-bold tracking-wider mb-1">Всего донатов</div>
+                    <div class="text-4xl font-extrabold text-white font-mono" id="stat-count">0</div>
+                </div>
+                <div class="card-bg p-6 rounded-xl border border-gray-800">
+                    <div class="text-gray-400 text-xs uppercase font-bold tracking-wider mb-1">Средний чек</div>
+                    <div class="text-4xl font-extrabold text-pink-400 font-mono" id="stat-avg">0 ₽</div>
+                </div>
+            </div>
+
+            <div class="card-bg p-6 rounded-xl border border-gray-800 max-w-2xl mx-auto flex flex-col items-center justify-center">
+                <div class="w-full h-80 relative flex items-center justify-center">
+                    <canvas id="myChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- ТОП ДОНАТЕРОВ -->
+        <div id="view-leaderboard" class="absolute inset-0 p-10 hidden overflow-y-auto">
+            <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
+                <div>
+                    <h2 class="text-3xl font-black">Рейтинг Донатеров</h2>
+                    <p class="text-xs text-gray-400 mt-1">Ранжирование зрителей по общей сумме поддержки</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="text-xs text-gray-400 font-bold uppercase">Показать первых:</span>
+                    <input type="number" id="leaderboard-limit" value="10" min="1" max="100" class="w-20 text-center py-1.5 px-2 text-sm font-bold font-mono">
+                </div>
+            </div>
+
+            <div class="card-bg rounded-xl border border-gray-800 overflow-hidden max-w-4xl">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-black/60 text-xs uppercase text-gray-400 border-b border-gray-800 font-mono">
+                        <tr>
+                            <th class="py-3 px-4 w-16 text-center">#</th>
+                            <th class="py-3 px-4">Зритель</th>
+                            <th class="py-3 px-4 text-center">Кол-во донатов</th>
+                            <th class="py-3 px-4 text-center">Средний чек</th>
+                            <th class="py-3 px-4 text-right">Общая сумма</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboard-tbody" class="divide-y divide-gray-800/60 font-sans">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ФЕЙК -->
+        <div id="view-fake" class="absolute inset-0 p-10 hidden flex flex-col items-center justify-center">
+            <div class="card-bg p-8 rounded-xl w-full max-w-md border border-gray-800 shadow-2xl">
+                <h2 class="text-2xl font-bold mb-6">Создать тестовый донат</h2>
+                <div class="space-y-4">
+                    <input type="text" id="fake-name" placeholder="Имя отправителя">
+                    <input type="number" id="fake-amount" placeholder="Сумма">
+                    <textarea id="fake-msg" rows="3" placeholder="Сообщение..."></textarea>
+                    <button id="btn-send-fake" class="btn accent-bg text-white w-full">Отправить в очередь</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ДАННЫЕ И ОТЧЕТЫ (С НАСТРОЙКОЙ КОМИССИИ) -->
+        <div id="view-data" class="absolute inset-0 p-10 hidden overflow-y-auto">
+            <h2 class="text-3xl font-black mb-6">Отчеты и Управление Базой</h2>
+            <div class="grid grid-cols-2 gap-6 max-w-4xl mb-6">
+                
+                <!-- Генерация отчета -->
+                <div class="card-bg p-6 rounded-xl flex flex-col border border-gray-800">
+                    <h3 class="text-xl font-bold mb-2">HTML-Отчет стрима</h3>
+                    <p class="text-sm text-gray-400 mb-4">Автономный отчет с диаграммой, расчетом чистой выплаты и списком сообщений.</p>
+                    
+                    <!-- Настройка комиссии -->
+                    <div class="bg-black/50 border border-gray-800 p-3.5 rounded-lg mb-4 space-y-2">
+                        <label class="flex items-center justify-between text-xs font-bold text-gray-300">
+                            <span>Комиссия сервиса / вывода (%):</span>
+                            <div class="flex items-center gap-1.5 w-24">
+                                <input type="number" id="report-fee-percent" value="7" min="0" max="100" step="0.5" class="text-right py-1 px-2 text-xs font-mono font-bold">
+                                <span class="text-gray-400">%</span>
+                            </div>
+                        </label>
+                        <p class="text-[11px] text-gray-500 leading-tight">Процент удерживаемой комиссии для расчета суммы на руки.</p>
+                    </div>
+
+                    <label class="flex items-center cursor-pointer mb-5 border border-gray-800 p-3 rounded-lg bg-black/30 hover:bg-gray-800/40">
+                        <input type="checkbox" id="report-include-fakes" class="w-4 h-4 accent-[var(--accent)] mr-3">
+                        <span class="text-xs text-gray-300 font-semibold">Включить тестовые (фейковые) донаты в отчет</span>
+                    </label>
+
+                    <button id="btn-export-html" class="btn accent-bg text-white w-full mt-auto">Сгенерировать HTML-отчет</button>
+                </div>
+
+                <div class="card-bg p-6 rounded-xl border border-gray-800 flex flex-col">
+                    <h3 class="text-xl font-bold mb-2">Резервная копия (.json)</h3>
+                    <p class="text-sm text-gray-400 mb-6">Экспорт всей базы для бэкапа или импорт истории.</p>
+                    <button id="btn-export-json" class="btn border-2 border-gray-700 text-gray-300 w-full mb-3 hover:bg-gray-800">Экспорт базы</button>
+                    <input type="file" id="file-import-json" accept=".json" class="hidden">
+                    <button onclick="document.getElementById('file-import-json').click()" class="btn border-2 border-emerald-700 text-emerald-400 w-full hover:bg-emerald-900/30">Импорт базы</button>
+                </div>
+            </div>
+
+            <div class="card-bg p-6 rounded-xl border border-red-900/50 bg-red-950/10 max-w-4xl">
+                <h3 class="text-lg font-bold text-red-400 mb-1">Сброс данных и аналитики</h3>
+                <p class="text-xs text-gray-400 mb-4">Полностью удаляет все сообщения, историю сборов и обнуляет графики аналитики.</p>
+                <button id="btn-clear-database" class="btn bg-red-600 hover:bg-red-500 text-white text-sm py-2 px-6">
+                    🗑 Очистить историю сообщений и аналитику
+                </button>
+            </div>
+        </div>
+
+        <!-- НАСТРОЙКИ -->
+        <div id="view-settings" class="absolute inset-0 p-10 hidden overflow-y-auto">
+            <h2 class="text-3xl font-black mb-6">Настройки</h2>
+            
+            <div class="card-bg p-6 rounded-xl max-w-2xl mb-6 border border-gray-800">
+                <h3 class="text-lg font-bold mb-2 flex items-center gap-2"><span class="text-orange-500">🔥</span> Подключение DonationAlerts</h3>
+                <div class="text-xs text-gray-400 mb-4 bg-black/60 p-3 rounded border border-gray-800 space-y-1">
+                    <p>1. В DonationAlerts перейди в <b>Виджеты</b> → <b>Оповещения</b>.</p>
+                    <p>2. Нажми <b>Показать</b> ссылку для OBS и скопируй её.</p>
+                    <p>3. Вставь ссылку целиком или токен ниже:</p>
+                </div>
+                <div class="flex gap-3">
+                    <input type="password" id="da-token" placeholder="https://www.donationalerts.com/widget/alerts?token=...">
+                    <button id="btn-save-da" class="btn border-2 border-orange-500 text-orange-400 hover:bg-orange-900/30 whitespace-nowrap text-sm">Подключить</button>
+                </div>
+            </div>
+
+            <div class="card-bg p-6 rounded-xl max-w-2xl mb-6 flex items-center justify-between border border-gray-800">
+                <div>
+                    <h3 class="text-lg font-bold mb-1">Акцентный цвет</h3>
+                    <p class="text-xs text-gray-400">Нажми на круг для смены палитры.</p>
+                </div>
+                <input type="color" id="setting-color" value="#a855f7">
+            </div>
+
+            <div class="card-bg p-6 rounded-xl max-w-2xl mb-6 border border-gray-800">
+                <h3 class="text-lg font-bold mb-2">Черный список слов (Цензура)</h3>
+                <p class="text-xs text-gray-400 mb-3">Слова через запятую для подсветки модератору.</p>
+                <textarea id="setting-blacklist" rows="3" placeholder="спам, реклама, мат..."></textarea>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- МОДАЛЬНОЕ ОКНО ПАСХАЛКИ (EASTER EGG - GAMERNAMLESS) -->
+    <div id="easter-egg-modal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 hidden items-center justify-center p-4">
+        <div class="card-bg border-2 border-[var(--accent)] rounded-2xl p-8 max-w-md w-full relative shadow-2xl shadow-purple-950/80 transform transition-all scale-95 duration-200" id="easter-card">
+            
+            <button id="btn-close-easter" class="absolute top-4 right-4 text-gray-400 hover:text-white text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 transition">
+                ✕
+            </button>
+
+            <div class="flex flex-col items-center text-center">
+                <div class="w-20 h-20 rounded-full border-2 border-[var(--accent)] flex items-center justify-center text-4xl mb-4 shadow-lg shadow-purple-900/50 bg-black/80">
+                    ⚡
+                </div>
+                
+                <span class="text-[11px] uppercase tracking-widest font-black text-purple-400 bg-purple-950/80 border border-purple-800 px-3 py-1 rounded-full mb-3">
+                    Project Author & Developer
+                </span>
+                
+                <h3 class="text-3xl font-black text-white mb-1 tracking-tight">GamerNamless</h3>
+                <p class="text-xs text-gray-400 mb-6 max-w-xs">
+                    StreamHub Core: полностью автономная локальная система очередей, модерации и аналитики.
+                </p>
+
+                <div class="w-full space-y-3">
+                    <button id="link-yt" class="w-full flex items-center justify-between p-3.5 rounded-xl bg-red-950/30 border border-red-800 hover:bg-red-900/40 text-white font-bold transition group cursor-pointer">
+                        <div class="flex items-center gap-3">
+                            <span class="text-xl">▶</span>
+                            <span class="text-sm">YouTube: @GamerNamless</span>
+                        </div>
+                        <span class="text-xs text-red-400 font-mono group-hover:translate-x-1 transition-transform">Открыть ↗</span>
+                    </button>
+
+                    <button id="link-tg" class="w-full flex items-center justify-between p-3.5 rounded-xl bg-sky-950/30 border border-sky-800 hover:bg-sky-900/40 text-white font-bold transition group cursor-pointer">
+                        <div class="flex items-center gap-3">
+                            <span class="text-xl">✈</span>
+                            <span class="text-sm">Telegram: @GamerNamless</span>
+                        </div>
+                        <span class="text-xs text-sky-400 font-mono group-hover:translate-x-1 transition-transform">Открыть ↗</span>
+                    </button>
+                </div>
+
+                <div class="mt-6 pt-4 border-t border-gray-800/80 w-full flex items-center justify-between text-[11px] text-gray-500 font-mono">
+                    <span>Developer: GamerNamless</span>
+                    <span class="text-emerald-400">Verified System ✓</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>
+

@@ -1,0 +1,48 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: sans-serif; color: white; text-shadow: 2px 2px 4px #000; }
+        .widget {
+            position: absolute; bottom: 50px; left: 50px;
+            background: linear-gradient(135deg, rgba(24,24,31,0.9), rgba(13,13,17,0.9));
+            border: 2px solid #a855f7; border-radius: 20px;
+            padding: 30px; width: 500px;
+            transform: translateY(150%); transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 10px 30px rgba(168, 85, 247, 0.4);
+        }
+        .show { transform: translateY(0); }
+        .name { font-size: 32px; font-weight: bold; color: #a855f7; }
+        .amount { font-size: 28px; font-weight: bold; color: #10b981; margin-bottom: 10px; }
+        .msg { font-size: 24px; line-height: 1.4; }
+    </style>
+</head>
+<body>
+    <div class="widget" id="widget">
+        <div class="name" id="name"></div>
+        <div class="amount" id="amount"></div>
+        <div class="msg" id="msg"></div>
+    </div>
+    <script>
+        let lastId = null;
+        setInterval(async () => {
+            try {
+                const res = await fetch('/api/current');
+                const data = await res.json();
+                if (data && data.id !== lastId) {
+                    lastId = data.id;
+                    document.getElementById('name').innerText = data.username;
+                    document.getElementById('amount').innerText = data.amount + ' ' + data.currency;
+                    document.getElementById('msg').innerText = data.message;
+                    
+                    const w = document.getElementById('widget');
+                    w.classList.add('show');
+                    
+                    // Прячем через 10 секунд
+                    setTimeout(() => w.classList.remove('show'), 10000);
+                }
+            } catch (e) {}
+        }, 1000);
+    </script>
+</body>
+</html>
